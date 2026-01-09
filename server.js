@@ -37,6 +37,16 @@ io.on('connection', (socket) => {
     let currentRoom = null;
 
     socket.on('joinRoom', (roomId) => {
+        // If switching rooms, leave the previous room and drop any held piece there.
+        if (currentRoom && currentRoom !== roomId) {
+            socket.leave(currentRoom);
+            const prevState = getRoomState(currentRoom);
+            const held = prevState.pieces.find(p => p.heldBy === socket.id);
+            if (held) {
+                held.heldBy = null;
+                io.to(currentRoom).emit('stateUpdate', prevState);
+            }
+        }
         currentRoom = roomId;
         socket.join(roomId);
         const state = getRoomState(roomId);

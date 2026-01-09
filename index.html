@@ -107,15 +107,136 @@
             display: block;
         }
         #sidebar { width: 220px; }
-        .spawn-btn {
-            display: block; width: 100%; padding: 12px; margin-bottom: 8px;
-            cursor: pointer; background: #e0e0e0; border: none; border-radius: 6px;
-            color: #555; font-weight: 500; transition: all 0.3s ease;
+        #supplyArea { position: relative; }
+        #supplyHeader {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            margin-bottom: 6px;
         }
-        .spawn-btn:hover:not(:disabled) { background: #d4d4d4; transform: translateY(-1px); }
-        .spawn-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .menu-open-btn {
+            appearance: none;
+            border: 1px solid rgba(0,0,0,0.10);
+            background: #f4f1ea;
+            color: #5d5d5d;
+            border-radius: 10px;
+            padding: 8px 10px;
+            cursor: pointer;
+            font-weight: 600;
+            letter-spacing: 0.02em;
+            transition: transform 0.12s ease, filter 0.12s ease, box-shadow 0.12s ease;
+            flex: 0 0 auto;
+        }
+        .menu-open-btn:hover { filter: brightness(1.02); transform: translateY(-1px); }
+        .menu-open-btn:active { transform: translateY(0px); }
+        .menu-open-btn:focus-visible {
+            outline: none;
+            box-shadow: 0 0 0 4px rgba(129,178,154,0.18);
+        }
+        #menuOverlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.18);
+            z-index: 900;
+        }
+        #menuModal {
+            display: none;
+            position: absolute;
+            top: 0;
+            left: calc(100% + 16px);
+            width: 240px;
+            background: white;
+            border-radius: 12px;
+            border: 1px solid rgba(0,0,0,0.08);
+            box-shadow: 0 18px 60px rgba(0,0,0,0.18);
+            padding: 14px;
+            z-index: 1000;
+        }
+        #menuModalHeader {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 10px;
+        }
+        .menu-title {
+            margin: 0;
+            font-size: 0.95rem;
+            color: #5d5d5d;
+            letter-spacing: 0.10em;
+            text-transform: uppercase;
+            font-weight: 700;
+        }
+        .menu-close-btn {
+            appearance: none;
+            border: 0;
+            background: transparent;
+            cursor: pointer;
+            color: #888;
+            font-weight: 800;
+            font-size: 18px;
+            line-height: 1;
+            padding: 6px 8px;
+            border-radius: 8px;
+        }
+        .menu-close-btn:hover { background: rgba(0,0,0,0.05); }
+        .menu-actions {
+            display: grid;
+            gap: 10px;
+        }
+        #buttonContainer {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            align-content: flex-start;
+            padding-top: 6px;
+        }
+        .supply-tile {
+            width: var(--tile-side);
+            height: var(--tile-side);
+            padding: 0;
+            border: 1px solid rgba(0,0,0,0.08);
+            border-radius: 10px;
+            background: var(--tile-color);
+            cursor: pointer;
+            position: relative;
+            display: grid;
+            place-items: center;
+            box-shadow: 0 10px 22px rgba(0,0,0,0.12);
+            transition: transform 0.12s ease, filter 0.12s ease, box-shadow 0.12s ease;
+            user-select: none;
+        }
+        .supply-tile:hover:not(:disabled) { filter: brightness(1.03); transform: translateY(-1px); }
+        .supply-tile:active:not(:disabled) { transform: translateY(0px); }
+        .supply-tile:focus-visible {
+            outline: none;
+            box-shadow: 0 0 0 4px rgba(129,178,154,0.20), 0 10px 22px rgba(0,0,0,0.12);
+        }
+        .supply-tile:disabled {
+            opacity: 0.40;
+            cursor: not-allowed;
+            filter: grayscale(0.15);
+            box-shadow: none;
+            transform: none;
+        }
+        .supply-count {
+            font-weight: 800;
+            color: rgba(0,0,0,0.60);
+            text-shadow: 0 1px 0 rgba(255,255,255,0.35);
+            font-size: clamp(12px, calc(var(--tile-side) * 0.35), 22px);
+            line-height: 1;
+        }
+        .supply-size {
+            position: absolute;
+            bottom: 6px;
+            right: 8px;
+            font-size: 11px;
+            font-weight: 700;
+            color: rgba(0,0,0,0.45);
+        }
         
-        .action-btn { width: 100%; padding: 10px; margin-top: 10px; border: none; border-radius: 4px; cursor: pointer; color: white; }
+        .action-btn { width: 100%; padding: 10px; border: none; border-radius: 8px; cursor: pointer; color: white; }
     </style>
 </head>
 <body>
@@ -157,11 +278,31 @@
     <div id="game-container">
         <canvas id="gameCanvas"></canvas>
         <div id="sidebar">
-            <h2 style="margin-top: 0; color: #5d5d5d;">Supply</h2>
-            <div id="buttonContainer"></div>
-            <button id="checkBtn" class="action-btn" style="background-color: #4CAF50;">Check Solution</button>
-            <button id="resetBtn" class="action-btn" style="background-color: #e07a5f;">Reset Board</button>
-            <button onclick="copyInvite()" class="action-btn" style="background-color: #f4f1ea; color: #5d5d5d; border: 1px solid #d1ccc0;">Copy Invite Link</button>
+            <div id="supplyArea">
+                <div id="supplyHeader">
+                    <h2 style="margin: 0; color: #5d5d5d;">Supply</h2>
+                    <button id="openMenuBtn" class="menu-open-btn" type="button">Menu</button>
+                </div>
+                <div id="buttonContainer"></div>
+
+                <div id="menuOverlay"></div>
+                <div id="menuModal" role="dialog" aria-modal="true" aria-labelledby="menuTitle">
+                    <div id="menuModalHeader">
+                        <div id="menuTitle" class="menu-title">Menu</div>
+                        <button id="closeMenuBtn" class="menu-close-btn" type="button" aria-label="Close menu">×</button>
+                    </div>
+                    <div class="menu-actions">
+                        <button id="backToLobbyBtn" class="action-btn" style="background-color: #f4f1ea; color: #5d5d5d; border: 1px solid #d1ccc0;">
+                            Back to Lobby / Change Room
+                        </button>
+                        <button id="checkBtn" class="action-btn" style="background-color: #4CAF50;">Check Solution</button>
+                        <button id="resetBtn" class="action-btn" style="background-color: #e07a5f;">Reset Board</button>
+                        <button onclick="copyInvite()" class="action-btn" style="background-color: #f4f1ea; color: #5d5d5d; border: 1px solid #d1ccc0;">
+                            Copy Invite Link
+                        </button>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -173,6 +314,10 @@
         const TRAY_WIDTH = 150; // space to the right of the board for newly spawned pieces
         const CANVAS_WIDTH = BOARD_LIMIT + TRAY_WIDTH;
         const CANVAS_HEIGHT = BOARD_LIMIT;
+        const CALM_COLORS = {
+            1: "#b8c1ec", 2: "#a2d2ff", 3: "#ccd5ae", 4: "#e9edc9",
+            5: "#fae1dd", 6: "#fec89a", 7: "#dec0f1", 8: "#957fef"
+        };
 
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
@@ -189,6 +334,7 @@
         resizeCanvas();
 
         let pieces = [], myId = null, activePieceId = null;
+        let forceHomeScreen = false;
 
         // 1. ROOM HANDLING
         let roomID = window.location.hash.substring(1) || "lobby";
@@ -196,16 +342,25 @@
 
         socket.emit('joinRoom', roomID);
 
+        function switchRoom(nextRoomId) {
+            // Always drop any held piece in the current room before moving rooms
+            socket.emit('dropPiece', { roomId: roomID });
+            activePieceId = null;
+
+            roomID = nextRoomId;
+            window.location.hash = nextRoomId;
+
+            // Clear current local pieces so the 'init' logic starts fresh
+            pieces = [];
+            socket.emit('joinRoom', roomID);
+        }
+
         function joinSpecificRoom() {
             const input = document.getElementById('roomInput').value.trim();
             if (input) {
-                window.location.hash = input;
-                roomID = input; // CRITICAL: Update the variable used in all socket calls
-                socket.emit('joinRoom', roomID);
-                
-                // Clear current local pieces so the 'init' logic starts fresh
-                pieces = []; 
-                console.log("Switching to room:", roomID);
+                forceHomeScreen = false;
+                switchRoom(input);
+                console.log("Switching to room:", input);
             }
         }
 
@@ -214,13 +369,24 @@
             alert("Invite link copied to clipboard!");
         }
 
+        function openRoomPicker() {
+            forceHomeScreen = true;
+            document.getElementById('homeScreen').style.display = 'flex';
+            const input = document.getElementById('roomInput');
+            if (input) {
+                input.value = '';
+                input.focus();
+                input.select?.();
+            }
+        }
+
         // 2. SOCKET RECEIVERS
         socket.on('init', (data) => {
             myId = data.id;
             pieces = data.pieces;
             
             // If the room has pieces, hide the setup. If not, show it.
-            if (pieces && pieces.length > 0) {
+            if (!forceHomeScreen && pieces && pieces.length > 0) {
                 document.getElementById('homeScreen').style.display = 'none';
             } else {
                 document.getElementById('homeScreen').style.display = 'flex';
@@ -241,18 +407,44 @@
         // 3. ACTIONS (Adding roomId to every payload)
         function selectDifficulty(level) {
             document.getElementById('homeScreen').style.display = 'none';
+            forceHomeScreen = false;
             socket.emit('startGame', { difficulty: level, roomId: roomID });
         }
 
         function updateUI(inventory) {
             const container = document.getElementById('buttonContainer');
             container.innerHTML = '';
+
+            // Scale the supply tiles to the sidebar width so "size 8" is the largest square that fits.
+            // (Still wraps into multiple columns for smaller sizes.)
+            const containerWidth = container.clientWidth || 220;
+            // Make the palette a bit more compact than "full width".
+            const PALETTE_SCALE = 0.72; // lower = smaller tiles
+            const unit = Math.max(8, Math.floor(((containerWidth - 12) / 8) * PALETTE_SCALE));
+
             for (let size = 8; size >= 1; size--) {
                 const btn = document.createElement('button');
-                btn.className = 'spawn-btn';
-                btn.innerText = `Size ${size} (${inventory[size]} left)`;
+                btn.className = 'supply-tile';
+                btn.style.setProperty('--tile-side', `${size * unit}px`);
+                btn.style.setProperty('--tile-color', CALM_COLORS[size] || '#e0e0e0');
+                btn.title = `Size ${size} (${inventory[size]} left)`;
+                btn.setAttribute('aria-label', `Spawn size ${size}. ${inventory[size]} remaining.`);
                 btn.disabled = inventory[size] <= 0 || activePieceId !== null;
                 btn.onclick = () => socket.emit('spawnPiece', { size, roomId: roomID });
+
+                // Avoid text clutter on very small tiles.
+                if (size >= 3) {
+                    const count = document.createElement('div');
+                    count.className = 'supply-count';
+                    count.innerText = `${inventory[size]}`;
+                    btn.appendChild(count);
+
+                    const sizeTag = document.createElement('div');
+                    sizeTag.className = 'supply-size';
+                    sizeTag.innerText = `${size}×${size}`;
+                    btn.appendChild(sizeTag);
+                }
+
                 container.appendChild(btn);
             }
         }
@@ -376,6 +568,42 @@
         document.getElementById('resetBtn').onclick = () => confirm("Reset board?") && socket.emit('resetBoard', { roomId: roomID });
         document.getElementById('checkBtn').onclick = () => socket.emit('checkSolution', { roomId: roomID });
         socket.on('solutionResult', (res) => alert(res ? "🎉 Correct!" : "❌ Try again!"));
+
+        document.getElementById('backToLobbyBtn').onclick = () => {
+            openRoomPicker();
+            switchRoom("lobby");
+        };
+
+        // Menu popover (placed to the right of the supply palette)
+        let menuIsOpen = false;
+        function openMenu() {
+            menuIsOpen = true;
+            document.getElementById('menuOverlay').style.display = 'block';
+            document.getElementById('menuModal').style.display = 'block';
+        }
+        function closeMenu() {
+            menuIsOpen = false;
+            document.getElementById('menuOverlay').style.display = 'none';
+            document.getElementById('menuModal').style.display = 'none';
+        }
+
+        document.getElementById('openMenuBtn').onclick = () => menuIsOpen ? closeMenu() : openMenu();
+        document.getElementById('closeMenuBtn').onclick = closeMenu;
+        document.getElementById('menuOverlay').onclick = closeMenu;
+
+        // Escape closes menu first; otherwise closes the room picker if you're already in a room with an active board
+        window.addEventListener('keydown', (e) => {
+            if (e.key !== 'Escape') return;
+            if (menuIsOpen) {
+                closeMenu();
+                return;
+            }
+            if (!forceHomeScreen) return;
+            if (pieces && pieces.length > 0) {
+                forceHomeScreen = false;
+                document.getElementById('homeScreen').style.display = 'none';
+            }
+        });
     </script>
 </body>
 </html>
