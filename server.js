@@ -20,10 +20,16 @@ function getRoomState(roomId) {
     if (!rooms.has(roomId)) {
         rooms.set(roomId, {
             pieces: [],
-            inventory: { 1: 1, 2: 2, 3: 3, 4: 4, 5: 5, 6: 6, 7: 7, 8: 8 }
+            inventory: { 1: 1, 2: 2, 3: 3, 4: 4, 5: 5, 6: 6, 7: 7, 8: 8 },
+            users: {}
         });
     }
     return rooms.get(roomId);
+}
+
+function emitUsers(roomId) {
+    const state = getRoomState(roomId);
+    io.to(roomId).emit('usersUpdate', { roomId, users: state.users });
 }
 
 const CALM_COLORS = {
@@ -36,22 +42,36 @@ app.get('/', (req, res) => res.sendFile(__dirname + '/index.html'));
 io.on('connection', (socket) => {
     let currentRoom = null;
 
-    socket.on('joinRoom', (roomId) => {
+    socket.on('joinRoom', (payload) => {
+        const roomId = typeof payload === 'string' ? payload : payload?.roomId;
+        const requestedName = typeof payload === 'string' ? null : payload?.name;
+        const name = (requestedName || '').trim();
+
+        // Require a name for a good multiplayer UX.
+        if (!name) {
+            socket.emit('nameRequired');
+            return;
+        }
+
         // If switching rooms, leave the previous room and drop any held piece there.
         if (currentRoom && currentRoom !== roomId) {
             socket.leave(currentRoom);
             const prevState = getRoomState(currentRoom);
+            delete prevState.users[socket.id];
             const held = prevState.pieces.find(p => p.heldBy === socket.id);
             if (held) {
                 held.heldBy = null;
                 io.to(currentRoom).emit('stateUpdate', prevState);
             }
+            emitUsers(currentRoom);
         }
         currentRoom = roomId;
         socket.join(roomId);
         const state = getRoomState(roomId);
+        state.users[socket.id] = name;
         // Initialize the client with the specific room state
-        socket.emit('init', { id: socket.id, ...state });
+        socket.emit('init', { id: socket.id, roomId, ...state });
+        emitUsers(roomId);
         console.log(`User ${socket.id} joined room: ${roomId}`);
     });
 
@@ -160,11 +180,13 @@ io.on('connection', (socket) => {
     socket.on('disconnect', () => {
         if (currentRoom) {
             const state = getRoomState(currentRoom);
+            delete state.users[socket.id];
             const piece = state.pieces.find(p => p.heldBy === socket.id);
             if (piece) {
                 piece.heldBy = null;
                 io.to(currentRoom).emit('stateUpdate', state);
             }
+            emitUsers(currentRoom);
         }
     });
 });

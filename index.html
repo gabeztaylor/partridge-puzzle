@@ -52,6 +52,11 @@
             border-color: rgba(129,178,154,0.9);
             box-shadow: 0 0 0 4px rgba(129,178,154,0.25);
         }
+        .help-text {
+            font-size: 0.8em;
+            color: rgba(255,255,255,0.70);
+            margin: 10px 0 0;
+        }
         .btn {
             appearance: none;
             border: 0;
@@ -107,6 +112,51 @@
             display: block;
         }
         #sidebar { width: 220px; }
+        #roomInfo {
+            margin-bottom: 10px;
+        }
+        #roomLabel {
+            font-size: 0.72rem;
+            letter-spacing: 0.10em;
+            text-transform: uppercase;
+            color: rgba(93,93,93,0.80);
+            margin-bottom: 6px;
+        }
+        #usersList {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+        .user-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 8px;
+            border-radius: 999px;
+            background: rgba(244,241,234,0.85);
+            border: 1px solid rgba(0,0,0,0.08);
+            color: #5d5d5d;
+            font-size: 12px;
+            font-weight: 650;
+            max-width: 100%;
+        }
+        .user-chip.me {
+            border-color: rgba(129,178,154,0.45);
+            background: rgba(129,178,154,0.12);
+        }
+        .user-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: rgba(93,93,93,0.35);
+            flex: 0 0 auto;
+        }
+        .user-chip.me .user-dot { background: rgba(129,178,154,0.85); }
+        .user-name {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
         #supplyArea { position: relative; }
         #supplyHeader {
             display: flex;
@@ -246,13 +296,16 @@
         
         <div class="home-card">
         <div id="roomControls" style="text-align: center;">
+            <label class="home-label" for="nameInput">Your name</label>
+            <input type="text" id="nameInput" class="text-input" placeholder="Name (required)" maxlength="20">
+
             <label class="home-label" for="roomInput">Room</label>
             <input type="text" id="roomInput" class="text-input" placeholder="Room Name (e.g. 'Lab')">
             
             <div class="home-row" style="margin-top: 12px;">
                 <button class="btn btn-primary" onclick="joinSpecificRoom()">Enter Room</button>
             </div>
-            <p style="font-size: 0.8em; color: #ccc; margin-top: 10px;">
+            <p class="help-text">
                 If the room is empty, you'll be asked to set the difficulty.
             </p>
         </div>
@@ -279,6 +332,10 @@
         <canvas id="gameCanvas"></canvas>
         <div id="sidebar">
             <div id="supplyArea">
+                <div id="roomInfo">
+                    <div id="roomLabel">Room: …</div>
+                    <div id="usersList"></div>
+                </div>
                 <div id="supplyHeader">
                     <h2 style="margin: 0; color: #5d5d5d;">Supply</h2>
                     <button id="openMenuBtn" class="menu-open-btn" type="button">Menu</button>
@@ -335,12 +392,67 @@
 
         let pieces = [], myId = null, activePieceId = null;
         let forceHomeScreen = false;
+        let playerName = (localStorage.getItem('playerName') || '').trim();
 
         // 1. ROOM HANDLING
         let roomID = window.location.hash.substring(1) || "lobby";
         if (!window.location.hash) window.location.hash = "lobby";
 
-        socket.emit('joinRoom', roomID);
+        const nameInputEl = document.getElementById('nameInput');
+        if (nameInputEl) nameInputEl.value = playerName;
+
+        function savePlayerName(nextName) {
+            playerName = (nextName || '').trim();
+            localStorage.setItem('playerName', playerName);
+        }
+
+        function renderUsers(usersObj) {
+            const listEl = document.getElementById('usersList');
+            const labelEl = document.getElementById('roomLabel');
+            if (labelEl) labelEl.innerText = `Room: ${roomID}`;
+            if (!listEl) return;
+
+            const entries = Object.entries(usersObj || {}).map(([id, name]) => ({ id, name }));
+            entries.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+            listEl.innerHTML = '';
+
+            if (entries.length === 0) {
+                const chip = document.createElement('div');
+                chip.className = 'user-chip';
+                chip.innerText = 'No one here yet';
+                listEl.appendChild(chip);
+                return;
+            }
+
+            entries.forEach(u => {
+                const chip = document.createElement('div');
+                chip.className = `user-chip${u.id === myId ? ' me' : ''}`;
+
+                const dot = document.createElement('div');
+                dot.className = 'user-dot';
+                chip.appendChild(dot);
+
+                const name = document.createElement('div');
+                name.className = 'user-name';
+                name.innerText = u.name || 'Unknown';
+                chip.appendChild(name);
+
+                listEl.appendChild(chip);
+            });
+        }
+
+        function tryJoinRoom(targetRoomId) {
+            if (!playerName) {
+                forceHomeScreen = true;
+                document.getElementById('homeScreen').style.display = 'flex';
+                document.getElementById('nameInput')?.focus();
+                renderUsers({});
+                return;
+            }
+            socket.emit('joinRoom', { roomId: targetRoomId, name: playerName });
+        }
+
+        tryJoinRoom(roomID);
 
         function switchRoom(nextRoomId) {
             // Always drop any held piece in the current room before moving rooms
@@ -352,10 +464,19 @@
 
             // Clear current local pieces so the 'init' logic starts fresh
             pieces = [];
-            socket.emit('joinRoom', roomID);
+            renderUsers({});
+            tryJoinRoom(roomID);
         }
 
         function joinSpecificRoom() {
+            const nameVal = document.getElementById('nameInput')?.value?.trim() || '';
+            if (!nameVal) {
+                alert("Please enter a name first.");
+                document.getElementById('nameInput')?.focus();
+                return;
+            }
+            savePlayerName(nameVal);
+
             const input = document.getElementById('roomInput').value.trim();
             if (input) {
                 forceHomeScreen = false;
@@ -372,6 +493,8 @@
         function openRoomPicker() {
             forceHomeScreen = true;
             document.getElementById('homeScreen').style.display = 'flex';
+            const nameEl = document.getElementById('nameInput');
+            if (nameEl && !nameEl.value) nameEl.value = playerName;
             const input = document.getElementById('roomInput');
             if (input) {
                 input.value = '';
@@ -383,7 +506,9 @@
         // 2. SOCKET RECEIVERS
         socket.on('init', (data) => {
             myId = data.id;
+            if (data.roomId) roomID = data.roomId;
             pieces = data.pieces;
+            renderUsers(data.users || {});
             
             // If the room has pieces, hide the setup. If not, show it.
             if (!forceHomeScreen && pieces && pieces.length > 0) {
@@ -401,7 +526,20 @@
             const myHeld = pieces.find(p => p.heldBy === myId);
             activePieceId = myHeld ? myHeld.id : null;
             updateUI(data.inventory);
+            renderUsers(data.users || {});
             draw();
+        });
+
+        socket.on('usersUpdate', (data) => {
+            if (data?.roomId && data.roomId !== roomID) return;
+            renderUsers(data.users || {});
+        });
+
+        socket.on('nameRequired', () => {
+            forceHomeScreen = true;
+            document.getElementById('homeScreen').style.display = 'flex';
+            alert("Please enter a name to join the room.");
+            document.getElementById('nameInput')?.focus();
         });
 
         // 3. ACTIONS (Adding roomId to every payload)
