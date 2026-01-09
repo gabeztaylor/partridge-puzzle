@@ -33,18 +33,31 @@
 <body>
 
     <div id="homeScreen">
-        <h1 style="letter-spacing: 4px; text-transform: uppercase;">36x36 Tiling Challenge</h1>
+        <h1 style="letter-spacing: 4px; text-transform: uppercase;">Partridge Tiling</h1>
+        
         <div id="roomControls" style="margin-bottom: 30px; text-align: center;">
-            <input type="text" id="roomInput" placeholder="Enter Room Name..." style="padding: 10px; border-radius: 4px; border: none; width: 200px;">
-            <button onclick="joinSpecificRoom()" style="padding: 10px 20px; cursor: pointer;">Join Room</button>
-            <p style="font-size: 0.8em; color: #ccc;">(Leave blank for 'lobby')</p>
+            <input type="text" id="roomInput" placeholder="Room Name (e.g. 'Lab')" 
+                   style="padding: 10px; border-radius: 4px; border: none; width: 200px;">
+            
+            <div style="margin-top: 15px; display: flex; gap: 10px; justify-content: center;">
+                <button onclick="joinSpecificRoom()" style="padding: 10px 20px; cursor: pointer; background: #81b29a; color: white; border: none; border-radius: 4px;">
+                    Enter Room
+                </button>
+            </div>
+            <p style="font-size: 0.8em; color: #ccc; margin-top: 10px;">
+                If the room is empty, you'll be asked to set the difficulty.
+            </p>
         </div>
+    
         <hr style="width: 50%; opacity: 0.2; margin: 20px 0;">
-        <p>Choose difficulty to seed the board:</p>
-        <div style="display: flex; gap: 20px;">
-            <button onclick="selectDifficulty('easy')" style="padding: 15px 30px; cursor: pointer;">Easy</button>
-            <button onclick="selectDifficulty('medium')" style="padding: 15px 30px; cursor: pointer;">Medium</button>
-            <button onclick="selectDifficulty('hard')" style="padding: 15px 30px; cursor: pointer;">Hard</button>
+    
+        <div id="difficultySection">
+            <p>This room is empty. Select a difficulty to seed the board:</p>
+            <div style="display: flex; gap: 20px;">
+                <button onclick="selectDifficulty('easy')" ...>Easy</button>
+                <button onclick="selectDifficulty('medium')" ...>Medium</button>
+                <button onclick="selectDifficulty('hard')" ...>Hard</button>
+            </div>
         </div>
     </div>
 
@@ -78,7 +91,7 @@
         let pieces = [], myId = null, activePieceId = null;
 
         // 1. ROOM HANDLING
-        const roomID = window.location.hash.substring(1) || "lobby";
+        let roomID = window.location.hash.substring(1) || "lobby";
         if (!window.location.hash) window.location.hash = "lobby";
 
         socket.emit('joinRoom', roomID);
@@ -87,7 +100,12 @@
             const input = document.getElementById('roomInput').value.trim();
             if (input) {
                 window.location.hash = input;
-                window.location.reload(); 
+                roomID = input; // CRITICAL: Update the variable used in all socket calls
+                socket.emit('joinRoom', roomID);
+                
+                // Clear current local pieces so the 'init' logic starts fresh
+                pieces = []; 
+                console.log("Switching to room:", roomID);
             }
         }
 
@@ -100,6 +118,14 @@
         socket.on('init', (data) => {
             myId = data.id;
             pieces = data.pieces;
+            
+            // If the room has pieces, hide the setup. If not, show it.
+            if (pieces && pieces.length > 0) {
+                document.getElementById('homeScreen').style.display = 'none';
+            } else {
+                document.getElementById('homeScreen').style.display = 'flex';
+            }
+            
             updateUI(data.inventory);
             draw();
         });

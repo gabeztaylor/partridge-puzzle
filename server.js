@@ -47,6 +47,8 @@ io.on('connection', (socket) => {
 
     socket.on('startGame', (data) => {
         const state = getRoomState(data.roomId);
+        
+        // 1. Clear current state
         state.pieces = [];
         state.inventory = { 1: 1, 2: 2, 3: 3, 4: 4, 5: 5, 6: 6, 7: 7, 8: 8 };
         
@@ -58,6 +60,11 @@ io.on('connection', (socket) => {
             state.pieces.push(p);
             state.inventory[p.size]--;
         });
+    
+        // 2. SAVE THE SNAPSHOT of this initial seeded state
+        state.initialPieces = JSON.parse(JSON.stringify(state.pieces));
+        state.initialInventory = JSON.parse(JSON.stringify(state.inventory));
+    
         io.to(data.roomId).emit('stateUpdate', state);
     });
 
@@ -109,9 +116,19 @@ io.on('connection', (socket) => {
 
     socket.on('resetBoard', (data) => {
         const state = getRoomState(data.roomId);
-        state.pieces = [];
-        state.inventory = { 1: 1, 2: 2, 3: 3, 4: 4, 5: 5, 6: 6, 7: 7, 8: 8 };
+        
+        // 3. RESTORE from the snapshot if it exists
+        if (state.initialPieces) {
+            state.pieces = JSON.parse(JSON.stringify(state.initialPieces));
+            state.inventory = JSON.parse(JSON.stringify(state.initialInventory));
+        } else {
+            // Fallback if they reset before ever choosing a difficulty
+            state.pieces = [];
+            state.inventory = { 1: 1, 2: 2, 3: 3, 4: 4, 5: 5, 6: 6, 7: 7, 8: 8 };
+        }
+    
         io.to(data.roomId).emit('stateUpdate', state);
+        console.log(`Room ${data.roomId} reset to initial seed.`);
     });
 
     socket.on('checkSolution', (data) => {
