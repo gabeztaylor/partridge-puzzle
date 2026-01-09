@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>36x36 Square Tiling Puzzle</title>
+    <style>
+        body { font-family: sans-serif; display: flex; justify-content: center; padding: 20px; background-color: #f0f0f0; }
+        #game-container { display: flex; gap: 20px; background: white; padding: 20px; border-radius: 8px; shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        canvas { border: 2px solid #333; background: #fff; cursor: crosshair; }
+        #sidebar { width: 200px; }
+        .spawn-btn {
+            display: block; width: 100%; padding: 10px; margin-bottom: 8px;
+            cursor: pointer; background: #eee; border: 1px solid #ccc; border-radius: 4px;
+            transition: background 0.2s;
+        }
+        .spawn-btn:hover:not(:disabled) { background: #ddd; }
+        .spawn-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    </style>
+</head>
+<body>
+
+    <div id="game-container">
+        <canvas id="gameCanvas"></canvas>
+    
+        <div id="sidebar">
+            <h2 style="margin-top: 0;">Supply</h2>
+            <div id="buttonContainer"></div>
+        </div>
+    </div>
+    
+    <script src="/socket.io/socket.io.js"></script>
+
+    <script>
+        const socket = io();
+        const GRID_SIZE = 12; // Scaled down for 36x36
+        const BOARD_UNITS = 36;
+        const BOARD_LIMIT = BOARD_UNITS * GRID_SIZE; // 432px
+
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        // Set canvas size to fit board + some extra space
+        canvas.width = BOARD_LIMIT;
+        canvas.height = BOARD_LIMIT;
+    
+        let pieces = [];
+        let myId = null;
+        let activePieceId = null;
+    
+        socket.on('init', (data) => {
+            myId = data.id;
+            pieces = data.pieces;
+            updateUI(data.inventory);
+            draw();
+        });
+    
+        socket.on('stateUpdate', (data) => {
+            pieces = data.pieces;
+            // Check if I am holding something
+            const myHeld = pieces.find(p => p.heldBy === myId);
+            activePieceId = myHeld ? myHeld.id : null;
+            
+            updateUI(data.inventory);
+            draw();
+        });
+    
+        function updateUI(inventory) {
+            const container = document.getElementById('buttonContainer');
+            if (!container) return;
+            container.innerHTML = '';
+            
+            for (let size = 8; size >= 1; size--) {
+                const btn = document.createElement('button');
+                btn.className = 'spawn-btn';
+                btn.innerText = `Size ${size} (${inventory[size]} left)`;
+                
+                // Disable if none left OR if you are currently moving a piece
+                btn.disabled = inventory[size] <= 0 || activePieceId !== null;
+                
+                btn.onclick = () => {
+                    socket.emit('spawnPiece', size);
+                };
+                container.appendChild(btn);
+            }
+        }
+
+        function getMousePos(evt) {
+            const rect = canvas.getBoundingClientRect();
+            return {
+                x: Math.floor((evt.clientX - rect.left) / GRID_SIZE) * GRID_SIZE,
+                y: Math.floor((evt.clientY - rect.top) / GRID_SIZE) * GRID_SIZE
+            };
+        }
+
+        canvas.addEventListener('mousedown', (e) => {
+            const pos = getMousePos(e);
+            
+            if (!activePieceId) {
+                const clickedPiece = pieces.find(p => 
+                    pos.x >= p.x && pos.x < p.x + (p.size * GRID_SIZE) &&
+                    pos.y >= p.y && pos.y < p.y + (p.size * GRID_SIZE)
+                );
+                if (clickedPiece && !clickedPiece.heldBy) {
+                    socket.emit('pickUp', clickedPiece.id);
+                }
+            } else {
+                socket.emit('dropPiece');
+            }
+        });
+
+        window.addEventListener('mousemove', (e) => {
+            if (!activePieceId || activePieceId === 'pending') return;
+            const pos = getMousePos(e);
+            socket.emit('movePiece', { id: activePieceId, x: pos.x, y: pos.y });
+        });
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // 1. Draw "Board" (36x36 Play Area)
+            ctx.fillStyle = "#ffffff";
+            ctx.fillRect(0, 0, BOARD_LIMIT, BOARD_LIMIT);
+            
+            // Draw a subtle grid for the 36 units
+            ctx.strokeStyle = "#eee";
+            ctx.lineWidth = 1;
+            for(let i=0; i<=BOARD_LIMIT; i+=GRID_SIZE) {
+                ctx.beginPath(); ctx.moveTo(i,0); ctx.lineTo(i, BOARD_LIMIT); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(0,i); ctx.lineTo(BOARD_LIMIT, i); ctx.stroke();
+            }
+
+            ctx.strokeStyle = "#333";
+            ctx.lineWidth = 2;
+            ctx.strokeRect(0, 0, BOARD_LIMIT, BOARD_LIMIT);
+
+            // 2. Draw Pieces
+            pieces.forEach(p => {
+                ctx.fillStyle = p.color;
+                const pixelSize = p.size * GRID_SIZE;
+                ctx.fillRect(p.x, p.y, pixelSize, pixelSize);
+
+                if (p.heldBy) {
+                    ctx.strokeStyle = p.heldBy === myId ? "#00FF00" : "#FF0000";
+                    ctx.lineWidth = 3;
+                    ctx.strokeRect(p.x, p.y, pixelSize, pixelSize);
+                } else {
+                    ctx.strokeStyle = "rgba(0,0,0,0.2)";
+                    ctx.lineWidth = 1;
+                    ctx.strokeRect(p.x, p.y, pixelSize, pixelSize);
+                }
+            });
+        }
+    </script>
+</body>
+</html>
