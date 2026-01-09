@@ -4,153 +4,153 @@
     <title>36x36 Square Tiling Puzzle</title>
     <style>
         body { font-family: sans-serif; display: flex; justify-content: center; padding: 20px; background-color: #f0f0f0; }
-        #game-container { display: flex; gap: 20px; background: white; padding: 20px; border-radius: 8px; shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        #game-container { display: flex; gap: 20px; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
         canvas { border: 2px solid #333; background: #fff; cursor: crosshair; }
         #sidebar { width: 200px; }
         .spawn-btn {
             display: block; width: 100%; padding: 10px; margin-bottom: 8px;
             cursor: pointer; background: #eee; border: 1px solid #ccc; border-radius: 4px;
-            transition: background 0.2s;
         }
-        .spawn-btn:hover:not(:disabled) { background: #ddd; }
         .spawn-btn:disabled { opacity: 0.5; cursor: not-allowed; }
     </style>
 </head>
 <body>
 
+    <div id="homeScreen" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 1000; color: white;">
+        <h1>36x36 Tiling Challenge</h1>
+        <p>Choose your difficulty:</p>
+        <div style="display: flex; gap: 20px;">
+            <button onclick="selectDifficulty('easy')" style="padding: 15px 30px; cursor: pointer;">Easy</button>
+            <button onclick="selectDifficulty('medium')" style="padding: 15px 30px; cursor: pointer;">Medium</button>
+            <button onclick="selectDifficulty('hard')" style="padding: 15px 30px; cursor: pointer;">Hard</button>
+        </div>
+    </div>
+
     <div id="game-container">
         <canvas id="gameCanvas"></canvas>
-    
         <div id="sidebar">
             <h2 style="margin-top: 0;">Supply</h2>
             <div id="buttonContainer"></div>
+            <button id="checkBtn" style="width: 100%; padding: 10px; margin-top: 10px; background-color: #4CAF50; color: white; border: none; border-radius: 4px; cursor: pointer;">Check Solution</button>
+            <button id="resetBtn" style="width: 100%; padding: 10px; margin-top: 10px; background-color: #ff4444; color: white; border: none; border-radius: 4px; cursor: pointer;">Reset Board</button>
         </div>
     </div>
     
     <script src="/socket.io/socket.io.js"></script>
-
     <script>
-        const socket = io({
-            transports: ['websocket']
-        });
-        const GRID_SIZE = 12; // Scaled down for 36x36
-        const BOARD_UNITS = 36;
-        const BOARD_LIMIT = BOARD_UNITS * GRID_SIZE; // 432px
+        const socket = io({ transports: ['websocket'] });
+        const GRID_SIZE = 12;
+        const BOARD_LIMIT = 36 * GRID_SIZE;
 
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
-        
-        // Set canvas size to fit board + some extra space
-        canvas.width = BOARD_LIMIT;
+        canvas.width = BOARD_LIMIT + 150; // Extra room for spawn area
         canvas.height = BOARD_LIMIT;
-    
-        let pieces = []; 
-        let myId = null;
-        let activePieceId = null;
-    
+
+        let pieces = [], myId = null, activePieceId = null;
+
+        function selectDifficulty(level) {
+            document.getElementById('homeScreen').style.display = 'none';
+            socket.emit('startGame', level);
+        }
+
         socket.on('init', (data) => {
             myId = data.id;
             pieces = data.pieces;
             updateUI(data.inventory);
             draw();
         });
-    
+
         socket.on('stateUpdate', (data) => {
             pieces = data.pieces;
-            // Check if I am holding something
             const myHeld = pieces.find(p => p.heldBy === myId);
             activePieceId = myHeld ? myHeld.id : null;
-            
             updateUI(data.inventory);
             draw();
         });
-    
+
         function updateUI(inventory) {
             const container = document.getElementById('buttonContainer');
-            if (!container) return;
             container.innerHTML = '';
-            
             for (let size = 8; size >= 1; size--) {
                 const btn = document.createElement('button');
                 btn.className = 'spawn-btn';
                 btn.innerText = `Size ${size} (${inventory[size]} left)`;
-                
-                // Disable if none left OR if you are currently moving a piece
                 btn.disabled = inventory[size] <= 0 || activePieceId !== null;
-                
-                btn.onclick = () => {
-                    socket.emit('spawnPiece', size);
-                };
+                btn.onclick = () => socket.emit('spawnPiece', size);
                 container.appendChild(btn);
             }
         }
 
         function getMousePos(evt) {
             const rect = canvas.getBoundingClientRect();
+            
+            // Use Math.round instead of Math.floor for more intuitive "snapping"
+            // and strictly calculate relative to the canvas's bounding box
             return {
-                x: Math.floor((evt.clientX - rect.left) / GRID_SIZE) * GRID_SIZE,
-                y: Math.floor((evt.clientY - rect.top) / GRID_SIZE) * GRID_SIZE
+                x: Math.round((evt.clientX - rect.left) / GRID_SIZE) * GRID_SIZE,
+                y: Math.round((evt.clientY - rect.top) / GRID_SIZE) * GRID_SIZE
             };
         }
 
         canvas.addEventListener('mousedown', (e) => {
             const pos = getMousePos(e);
-            
             if (!activePieceId) {
-                const clickedPiece = pieces.find(p => 
-                    pos.x >= p.x && pos.x < p.x + (p.size * GRID_SIZE) &&
-                    pos.y >= p.y && pos.y < p.y + (p.size * GRID_SIZE)
-                );
-                if (clickedPiece && !clickedPiece.heldBy) {
-                    socket.emit('pickUp', clickedPiece.id);
-                }
+                const clicked = pieces.find(p => pos.x >= p.x && pos.x < p.x + (p.size * GRID_SIZE) && pos.y >= p.y && pos.y < p.y + (p.size * GRID_SIZE));
+                if (clicked && !clicked.heldBy && !clicked.isLocked) socket.emit('pickUp', clicked.id);
             } else {
+                activePieceId = null;
                 socket.emit('dropPiece');
             }
         });
 
         window.addEventListener('mousemove', (e) => {
-            if (!activePieceId || activePieceId === 'pending') return;
-            const pos = getMousePos(e);
-            socket.emit('movePiece', { id: activePieceId, x: pos.x, y: pos.y });
+            if (!activePieceId) return;
+            
+            const rect = canvas.getBoundingClientRect();
+            const piece = pieces.find(p => p.id === activePieceId);
+            if (!piece) return;
+
+            // Calculate the size of the piece in pixels
+            const pixelSize = piece.size * GRID_SIZE;
+
+            // Adjust the mouse position so the center of the square follows the cursor
+            const rawX = e.clientX - rect.left - (pixelSize / 2);
+            const rawY = e.clientY - rect.top - (pixelSize / 2);
+
+            // Snap the adjusted position to the grid
+            const snapX = Math.round(rawX / GRID_SIZE) * GRID_SIZE;
+            const snapY = Math.round(rawY / GRID_SIZE) * GRID_SIZE;
+
+            socket.emit('movePiece', { id: activePieceId, x: snapX, y: snapY });
         });
 
         function draw() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-            // 1. Draw "Board" (36x36 Play Area)
-            ctx.fillStyle = "#ffffff";
+            ctx.fillStyle = "#fff";
             ctx.fillRect(0, 0, BOARD_LIMIT, BOARD_LIMIT);
-            
-            // Draw a subtle grid for the 36 units
             ctx.strokeStyle = "#eee";
-            ctx.lineWidth = 1;
             for(let i=0; i<=BOARD_LIMIT; i+=GRID_SIZE) {
                 ctx.beginPath(); ctx.moveTo(i,0); ctx.lineTo(i, BOARD_LIMIT); ctx.stroke();
                 ctx.beginPath(); ctx.moveTo(0,i); ctx.lineTo(BOARD_LIMIT, i); ctx.stroke();
             }
-
-            ctx.strokeStyle = "#333";
-            ctx.lineWidth = 2;
+            ctx.strokeStyle = "#333"; ctx.lineWidth = 2;
             ctx.strokeRect(0, 0, BOARD_LIMIT, BOARD_LIMIT);
 
-            // 2. Draw Pieces
             pieces.forEach(p => {
                 ctx.fillStyle = p.color;
-                const pixelSize = p.size * GRID_SIZE;
-                ctx.fillRect(p.x, p.y, pixelSize, pixelSize);
-
+                const px = p.size * GRID_SIZE;
+                ctx.fillRect(p.x, p.y, px, px);
                 if (p.heldBy) {
                     ctx.strokeStyle = p.heldBy === myId ? "#00FF00" : "#FF0000";
-                    ctx.lineWidth = 3;
-                    ctx.strokeRect(p.x, p.y, pixelSize, pixelSize);
-                } else {
-                    ctx.strokeStyle = "rgba(0,0,0,0.2)";
-                    ctx.lineWidth = 1;
-                    ctx.strokeRect(p.x, p.y, pixelSize, pixelSize);
+                    ctx.lineWidth = 3; ctx.strokeRect(p.x, p.y, px, px);
                 }
             });
         }
+
+        document.getElementById('resetBtn').onclick = () => confirm("Reset board?") && socket.emit('resetBoard');
+        document.getElementById('checkBtn').onclick = () => socket.emit('checkSolution');
+        socket.on('solutionResult', (res) => alert(res ? "🎉 Correct!" : "❌ Try again!"));
     </script>
 </body>
 </html>
