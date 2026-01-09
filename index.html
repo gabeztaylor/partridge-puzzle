@@ -3,50 +3,44 @@
 <head>
     <title>36x36 Square Tiling Puzzle</title>
     <style>
-        body { font-family: sans-serif; display: flex; flex-direction: column;
-                align-items: center; justify-content: center; padding: 20px; background-color: #f0f0f0; }
-        #game-container { display: flex; gap: 20px; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
-        canvas { border: 2px solid #333; background: #fff; cursor: crosshair; }
-        #sidebar { width: 200px; }
-        .spawn-btn {
-            display: block; width: 100%; padding: 10px; margin-bottom: 8px;
-            cursor: pointer; background: #eee; border: 1px solid #ccc; border-radius: 4px;
-        }
-        .spawn-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-
         body { 
-        background-color: #f4f1ea; /* Soft parchment beige */
-        color: #4a4a4a;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex; flex-direction: column; align-items: center; 
+            padding: 40px; background-color: #f4f1ea; margin: 0;
+        }
+        #homeScreen { 
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
+            background: rgba(0,0,0,0.9); display: flex; flex-direction: column; 
+            justify-content: center; align-items: center; z-index: 1000; color: white; 
         }
         #game-container { 
-            background: #ffffff; 
-            border-radius: 12px; 
-            box-shadow: 0 10px 30px rgba(0,0,0,0.05); /* Softer shadow */
+            display: flex; gap: 30px; background: white; padding: 30px; 
+            border-radius: 12px; box-shadow: 0 10px 40px rgba(0,0,0,0.04); 
         }
-        canvas { 
-            border: 1px solid #d1ccc0; 
-            border-radius: 4px;
-            background: #faf9f6; 
-        }
+        canvas { border: 1px solid #d1ccc0; border-radius: 4px; background: #faf9f6; cursor: crosshair; }
+        #sidebar { width: 220px; }
         .spawn-btn {
-            background: #e0e0e0;
-            border: none;
-            border-radius: 6px;
-            color: #555;
-            font-weight: 500;
-            transition: all 0.3s ease;
+            display: block; width: 100%; padding: 12px; margin-bottom: 8px;
+            cursor: pointer; background: #e0e0e0; border: none; border-radius: 6px;
+            color: #555; font-weight: 500; transition: all 0.3s ease;
         }
-        .spawn-btn:hover:not(:disabled) {
-            background: #d4d4d4;
-            transform: translateY(-1px);
-        }
+        .spawn-btn:hover:not(:disabled) { background: #d4d4d4; transform: translateY(-1px); }
+        .spawn-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        
+        .action-btn { width: 100%; padding: 10px; margin-top: 10px; border: none; border-radius: 4px; cursor: pointer; color: white; }
     </style>
 </head>
 <body>
 
-    <div id="homeScreen" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 1000; color: white;">
-        <h1>36x36 Tiling Challenge</h1>
-        <p>Choose your difficulty:</p>
+    <div id="homeScreen">
+        <h1 style="letter-spacing: 4px; text-transform: uppercase;">36x36 Tiling Challenge</h1>
+        <div id="roomControls" style="margin-bottom: 30px; text-align: center;">
+            <input type="text" id="roomInput" placeholder="Enter Room Name..." style="padding: 10px; border-radius: 4px; border: none; width: 200px;">
+            <button onclick="joinSpecificRoom()" style="padding: 10px 20px; cursor: pointer;">Join Room</button>
+            <p style="font-size: 0.8em; color: #ccc;">(Leave blank for 'lobby')</p>
+        </div>
+        <hr style="width: 50%; opacity: 0.2; margin: 20px 0;">
+        <p>Choose difficulty to seed the board:</p>
         <div style="display: flex; gap: 20px;">
             <button onclick="selectDifficulty('easy')" style="padding: 15px 30px; cursor: pointer;">Easy</button>
             <button onclick="selectDifficulty('medium')" style="padding: 15px 30px; cursor: pointer;">Medium</button>
@@ -54,20 +48,19 @@
         </div>
     </div>
 
-    <div style="text-align: center; margin-bottom: 30px; margin-top: 20px;">
-        <h1 style="font-weight: 300; letter-spacing: 4px; color: #5d5d5d; margin-bottom: 10px; text-transform: uppercase;">
-            Partridge Tiling
-        </h1>
+    <div style="text-align: center; margin-bottom: 30px;">
+        <h1 style="font-weight: 300; letter-spacing: 4px; color: #5d5d5d; text-transform: uppercase;">Partridge Tiling</h1>
         <div style="width: 60px; height: 1px; background: #d1ccc0; margin: 0 auto;"></div>
     </div>
 
     <div id="game-container">
         <canvas id="gameCanvas"></canvas>
         <div id="sidebar">
-            <h2 style="margin-top: 0;">Supply</h2>
+            <h2 style="margin-top: 0; color: #5d5d5d;">Supply</h2>
             <div id="buttonContainer"></div>
-            <button id="checkBtn" style="width: 100%; padding: 10px; margin-top: 10px; background-color: #4CAF50; color: white; border: none; border-radius: 4px; cursor: pointer;">Check Solution</button>
-            <button id="resetBtn" style="width: 100%; padding: 10px; margin-top: 10px; background-color: #ff4444; color: white; border: none; border-radius: 4px; cursor: pointer;">Reset Board</button>
+            <button id="checkBtn" class="action-btn" style="background-color: #4CAF50;">Check Solution</button>
+            <button id="resetBtn" class="action-btn" style="background-color: #e07a5f;">Reset Board</button>
+            <button onclick="copyInvite()" class="action-btn" style="background-color: #f4f1ea; color: #5d5d5d; border: 1px solid #d1ccc0;">Copy Invite Link</button>
         </div>
     </div>
 
@@ -79,16 +72,31 @@
 
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
-        canvas.width = BOARD_LIMIT + 150; // Extra room for spawn area
+        canvas.width = BOARD_LIMIT + 150; 
         canvas.height = BOARD_LIMIT;
 
         let pieces = [], myId = null, activePieceId = null;
 
-        function selectDifficulty(level) {
-            document.getElementById('homeScreen').style.display = 'none';
-            socket.emit('startGame', level);
+        // 1. ROOM HANDLING
+        const roomID = window.location.hash.substring(1) || "lobby";
+        if (!window.location.hash) window.location.hash = "lobby";
+
+        socket.emit('joinRoom', roomID);
+
+        function joinSpecificRoom() {
+            const input = document.getElementById('roomInput').value.trim();
+            if (input) {
+                window.location.hash = input;
+                window.location.reload(); 
+            }
         }
 
+        function copyInvite() {
+            navigator.clipboard.writeText(window.location.href);
+            alert("Invite link copied to clipboard!");
+        }
+
+        // 2. SOCKET RECEIVERS
         socket.on('init', (data) => {
             myId = data.id;
             pieces = data.pieces;
@@ -104,6 +112,12 @@
             draw();
         });
 
+        // 3. ACTIONS (Adding roomId to every payload)
+        function selectDifficulty(level) {
+            document.getElementById('homeScreen').style.display = 'none';
+            socket.emit('startGame', { difficulty: level, roomId: roomID });
+        }
+
         function updateUI(inventory) {
             const container = document.getElementById('buttonContainer');
             container.innerHTML = '';
@@ -112,16 +126,13 @@
                 btn.className = 'spawn-btn';
                 btn.innerText = `Size ${size} (${inventory[size]} left)`;
                 btn.disabled = inventory[size] <= 0 || activePieceId !== null;
-                btn.onclick = () => socket.emit('spawnPiece', size);
+                btn.onclick = () => socket.emit('spawnPiece', { size, roomId: roomID });
                 container.appendChild(btn);
             }
         }
 
         function getMousePos(evt) {
             const rect = canvas.getBoundingClientRect();
-            
-            // Use Math.round instead of Math.floor for more intuitive "snapping"
-            // and strictly calculate relative to the canvas's bounding box
             return {
                 x: Math.round((evt.clientX - rect.left) / GRID_SIZE) * GRID_SIZE,
                 y: Math.round((evt.clientY - rect.top) / GRID_SIZE) * GRID_SIZE
@@ -131,35 +142,36 @@
         canvas.addEventListener('mousedown', (e) => {
             const pos = getMousePos(e);
             if (!activePieceId) {
-                const clicked = pieces.find(p => pos.x >= p.x && pos.x < p.x + (p.size * GRID_SIZE) && pos.y >= p.y && pos.y < p.y + (p.size * GRID_SIZE));
-                if (clicked && !clicked.heldBy && !clicked.isLocked) socket.emit('pickUp', clicked.id);
+                const clicked = pieces.find(p => 
+                    pos.x >= p.x && pos.x < p.x + (p.size * GRID_SIZE) && 
+                    pos.y >= p.y && pos.y < p.y + (p.size * GRID_SIZE)
+                );
+                if (clicked && !clicked.heldBy && !clicked.isLocked) {
+                    socket.emit('pickUp', { pieceId: clicked.id, roomId: roomID });
+                }
             } else {
                 activePieceId = null;
-                socket.emit('dropPiece');
+                socket.emit('dropPiece', { roomId: roomID });
             }
         });
 
         window.addEventListener('mousemove', (e) => {
             if (!activePieceId) return;
-            
             const rect = canvas.getBoundingClientRect();
             const piece = pieces.find(p => p.id === activePieceId);
             if (!piece) return;
 
-            // Calculate the size of the piece in pixels
             const pixelSize = piece.size * GRID_SIZE;
-
-            // Adjust the mouse position so the center of the square follows the cursor
             const rawX = e.clientX - rect.left - (pixelSize / 2);
             const rawY = e.clientY - rect.top - (pixelSize / 2);
 
-            // Snap the adjusted position to the grid
             const snapX = Math.round(rawX / GRID_SIZE) * GRID_SIZE;
             const snapY = Math.round(rawY / GRID_SIZE) * GRID_SIZE;
 
-            socket.emit('movePiece', { id: activePieceId, x: snapX, y: snapY });
+            socket.emit('movePiece', { id: activePieceId, x: snapX, y: snapY, roomId: roomID });
         });
 
+        // 4. RENDERING (Zen/Calm Aesthetic)
         function drawRoundedRect(ctx, x, y, width, height, radius) {
             ctx.beginPath();
             ctx.moveTo(x + radius, y);
@@ -179,27 +191,22 @@
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             ctx.fillStyle = "#fff";
             ctx.fillRect(0, 0, BOARD_LIMIT, BOARD_LIMIT);
-            ctx.strokeStyle = "#eee";
+            ctx.strokeStyle = "#f0f0f0"; 
             for(let i=0; i<=BOARD_LIMIT; i+=GRID_SIZE) {
                 ctx.beginPath(); ctx.moveTo(i,0); ctx.lineTo(i, BOARD_LIMIT); ctx.stroke();
                 ctx.beginPath(); ctx.moveTo(0,i); ctx.lineTo(BOARD_LIMIT, i); ctx.stroke();
             }
-            ctx.strokeStyle = "#333"; ctx.lineWidth = 2;
+            ctx.strokeStyle = "#d1ccc0"; ctx.lineWidth = 1;
             ctx.strokeRect(0, 0, BOARD_LIMIT, BOARD_LIMIT);
 
             pieces.forEach(p => {
                 const px = p.size * GRID_SIZE;
-                
-                ctx.save(); // Save current state
-                
+                ctx.save();
                 if (p.heldBy === myId) {
-                    // Add shadow only to the piece you are holding
-                    ctx.shadowColor = "rgba(0, 0, 0, 0.2)";
-                    ctx.shadowBlur = 15;
-                    ctx.shadowOffsetX = 5;
-                    ctx.shadowOffsetY = 5;
-                    
-                    // Slightly scale it up to look "lifted"
+                    ctx.shadowColor = "rgba(0, 0, 0, 0.1)";
+                    ctx.shadowBlur = 10;
+                    ctx.shadowOffsetX = 4;
+                    ctx.shadowOffsetY = 4;
                     ctx.fillStyle = p.color;
                     drawRoundedRect(ctx, p.x - 1, p.y - 1, px + 2, px + 2, 6);
                 } else {
@@ -207,23 +214,19 @@
                     drawRoundedRect(ctx, p.x + 1, p.y + 1, px - 2, px - 2, 4);
                 }
 
-                // Apply the Muted Sage/Terracotta borders
                 if (p.heldBy) {
                     ctx.strokeStyle = p.heldBy === myId ? "#81b29a" : "#e07a5f";
-                    ctx.lineWidth = 2;
-                    ctx.stroke(); 
+                    ctx.lineWidth = 2; ctx.stroke(); 
                 } else {
                     ctx.strokeStyle = "rgba(0,0,0,0.05)";
-                    ctx.lineWidth = 1;
-                    ctx.stroke();
+                    ctx.lineWidth = 1; ctx.stroke();
                 }
-                
-                ctx.restore(); // Restore state to remove shadow for next pieces
+                ctx.restore();
             });
         }
 
-        document.getElementById('resetBtn').onclick = () => confirm("Reset board?") && socket.emit('resetBoard');
-        document.getElementById('checkBtn').onclick = () => socket.emit('checkSolution');
+        document.getElementById('resetBtn').onclick = () => confirm("Reset board?") && socket.emit('resetBoard', { roomId: roomID });
+        document.getElementById('checkBtn').onclick = () => socket.emit('checkSolution', { roomId: roomID });
         socket.on('solutionResult', (res) => alert(res ? "🎉 Correct!" : "❌ Try again!"));
     </script>
 </body>

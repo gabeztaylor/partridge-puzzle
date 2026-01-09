@@ -3,7 +3,6 @@ const http = require('http');
 const { Server } = require('socket.io');
 const fs = require('fs');
 
-// Load solutions from local directory
 const solutions = JSON.parse(fs.readFileSync('./solutions.json', 'utf8'));
 
 const app = express();
@@ -12,125 +11,138 @@ const io = new Server(server);
 
 const GRID_SIZE = 12; 
 const BOARD_UNITS = 36;
-const BOARD_PIXEL_SIZE = BOARD_UNITS * GRID_SIZE;
-const BOARD_LIMIT = BOARD_PIXEL_SIZE; 
+const BOARD_LIMIT = BOARD_UNITS * GRID_SIZE; 
 
-let pieces = [];
-let inventory = { 1: 1, 2: 2, 3: 3, 4: 4, 5: 5, 6: 6, 7: 7, 8: 8 };
+// The "Single Source of Truth" for all games
+const rooms = new Map(); 
+
+function getRoomState(roomId) {
+    if (!rooms.has(roomId)) {
+        rooms.set(roomId, {
+            pieces: [],
+            inventory: { 1: 1, 2: 2, 3: 3, 4: 4, 5: 5, 6: 6, 7: 7, 8: 8 }
+        });
+    }
+    return rooms.get(roomId);
+}
 
 const CALM_COLORS = {
-    1: "#b8c1ec", // Soft Blue
-    2: "#a2d2ff", // Sky
-    3: "#ccd5ae", // Sage
-    4: "#e9edc9", // Creamy Green
-    5: "#fae1dd", // Pale Pink
-    6: "#fec89a", // Peach
-    7: "#dec0f1", // Lavender
-    8: "#957fef"  // Muted Purple
+    1: "#b8c1ec", 2: "#a2d2ff", 3: "#ccd5ae", 4: "#e9edc9",
+    5: "#fae1dd", 6: "#fec89a", 7: "#dec0f1", 8: "#957fef"
 };
 
-app.get('/', (req, res) => {
-    res.sendFile(__dirname + '/index.html');
-});
+app.get('/', (req, res) => res.sendFile(__dirname + '/index.html'));
 
 io.on('connection', (socket) => {
-    console.log('User connected:', socket.id);
-    socket.emit('init', { id: socket.id, pieces, inventory });
+    let currentRoom = null;
 
-    // Handles the difficulty selection from the home screen
-    socket.on('startGame', (difficulty) => {
-        pieces = [];
-        inventory = { 1: 1, 2: 2, 3: 3, 4: 4, 5: 5, 6: 6, 7: 7, 8: 8 };
-        const template = solutions["1"].grid; 
+    socket.on('joinRoom', (roomId) => {
+        currentRoom = roomId;
+        socket.join(roomId);
+        const state = getRoomState(roomId);
+        // Initialize the client with the specific room state
+        socket.emit('init', { id: socket.id, ...state });
+        console.log(`User ${socket.id} joined room: ${roomId}`);
+    });
+
+    socket.on('startGame', (data) => {
+        const state = getRoomState(data.roomId);
+        state.pieces = [];
+        state.inventory = { 1: 1, 2: 2, 3: 3, 4: 4, 5: 5, 6: 6, 7: 7, 8: 8 };
         
-        const fillProbability = difficulty === 'easy' ? 0.6 : difficulty === 'medium' ? 0.3 : 0.1;
+        const template = solutions["1"].grid; 
+        const fillProbability = data.difficulty === 'easy' ? 0.6 : data.difficulty === 'medium' ? 0.3 : 0.1;
         const seededPieces = extractPiecesFromTemplate(template, fillProbability);
         
         seededPieces.forEach(p => {
-            pieces.push(p);
-            inventory[p.size]--;
+            state.pieces.push(p);
+            state.inventory[p.size]--;
         });
-        io.emit('stateUpdate', { pieces, inventory });
+        io.to(data.roomId).emit('stateUpdate', state);
     });
 
-    socket.on('spawnPiece', (size) => {
-        if (inventory[size] > 0) {
+    socket.on('spawnPiece', (data) => {
+        const state = getRoomState(data.roomId);
+        if (state.inventory[data.size] > 0) {
             const newPiece = {
                 id: `p${Date.now()}`,
-                size: size,
+                size: data.size,
                 x: BOARD_LIMIT + 20, 
                 y: 20,
                 heldBy: socket.id, 
                 isLocked: false,
-                // color: `hsl(${(size * 45) % 360}, 65%, 50%)`
-                color: CALM_COLORS[size]
+                color: CALM_COLORS[data.size]
             };
-            inventory[size]--;
-            pieces.push(newPiece);
-            io.emit('stateUpdate', { pieces, inventory });
+            state.inventory[data.size]--;
+            state.pieces.push(newPiece);
+            io.to(data.roomId).emit('stateUpdate', state);
         }
     });
 
-    socket.on('pickUp', (pieceId) => {
-        const piece = pieces.find(p => p.id === pieceId);
+    socket.on('pickUp', (data) => {
+        const state = getRoomState(data.roomId);
+        const piece = state.pieces.find(p => p.id === data.pieceId);
         if (piece && !piece.heldBy) {
             piece.heldBy = socket.id;
-            io.emit('stateUpdate', { pieces, inventory });
+            io.to(data.roomId).emit('stateUpdate', state);
         }
     });
 
     socket.on('movePiece', (data) => {
-        const piece = pieces.find(p => p.id === data.id);
+        const state = getRoomState(data.roomId);
+        const piece = state.pieces.find(p => p.id === data.id);
         if (piece && piece.heldBy === socket.id) {
             piece.x = data.x;
             piece.y = data.y;
-            io.emit('stateUpdate', { pieces, inventory });
+            io.to(data.roomId).emit('stateUpdate', state);
         }
     });
 
-    socket.on('dropPiece', () => {
-        const piece = pieces.find(p => p.heldBy === socket.id);
+    socket.on('dropPiece', (data) => {
+        const state = getRoomState(data.roomId);
+        const piece = state.pieces.find(p => p.heldBy === socket.id);
         if (piece) {
             piece.heldBy = null;
-            io.emit('stateUpdate', { pieces, inventory });
+            io.to(data.roomId).emit('stateUpdate', state);
         }
     });
 
-    socket.on('resetBoard', () => {
-        pieces = [];
-        inventory = { 1: 1, 2: 2, 3: 3, 4: 4, 5: 5, 6: 6, 7: 7, 8: 8 };
-        io.emit('stateUpdate', { pieces, inventory });
+    socket.on('resetBoard', (data) => {
+        const state = getRoomState(data.roomId);
+        state.pieces = [];
+        state.inventory = { 1: 1, 2: 2, 3: 3, 4: 4, 5: 5, 6: 6, 7: 7, 8: 8 };
+        io.to(data.roomId).emit('stateUpdate', state);
     });
 
-    socket.on('checkSolution', () => {
+    socket.on('checkSolution', (data) => {
+        const state = getRoomState(data.roomId);
         let currentGrid = Array.from({ length: 36 }, () => Array(36).fill(0));
-        pieces.forEach(p => {
+        state.pieces.forEach(p => {
             for (let row = 0; row < p.size; row++) {
                 for (let col = 0; col < p.size; col++) {
-                    let targetY = (p.y / GRID_SIZE) + row;
-                    let targetX = (p.x / GRID_SIZE) + col;
-                    if (targetY >= 0 && targetY < 36 && targetX >= 0 && targetX < 36) {
-                        currentGrid[targetY][targetX] = p.size;
-                    }
+                    let ty = (p.y / GRID_SIZE) + row;
+                    let tx = (p.x / GRID_SIZE) + col;
+                    if (ty >= 0 && ty < 36 && tx >= 0 && tx < 36) currentGrid[ty][tx] = p.size;
                 }
             }
         });
-        let isCorrect = false;
-        Object.values(solutions).forEach(sol => {
-            if (JSON.stringify(sol.grid) === JSON.stringify(currentGrid)) isCorrect = true;
-        });
+        let isCorrect = Object.values(solutions).some(sol => JSON.stringify(sol.grid) === JSON.stringify(currentGrid));
         socket.emit('solutionResult', isCorrect);
     });
 
     socket.on('disconnect', () => {
-        const piece = pieces.find(p => p.heldBy === socket.id);
-        if (piece) {
-            piece.heldBy = null;
-            io.emit('stateUpdate', { pieces, inventory });
+        if (currentRoom) {
+            const state = getRoomState(currentRoom);
+            const piece = state.pieces.find(p => p.heldBy === socket.id);
+            if (piece) {
+                piece.heldBy = null;
+                io.to(currentRoom).emit('stateUpdate', state);
+            }
         }
     });
 });
 
+// Helper stays the same
 function extractPiecesFromTemplate(template, fillProbability) {
     let seeded = [];
     let processed = Array.from({ length: 36 }, () => Array(36).fill(false));
@@ -152,7 +164,6 @@ function extractPiecesFromTemplate(template, fillProbability) {
                         y: r * GRID_SIZE,
                         heldBy: null,
                         isLocked: true,
-                        // color: `hsl(${(size * 45) % 360}, 65%, 50%)`
                         color: CALM_COLORS[size]
                     });
                 }
