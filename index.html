@@ -3,7 +3,8 @@
 <head>
     <title>36x36 Square Tiling Puzzle</title>
     <style>
-        body { font-family: sans-serif; display: flex; justify-content: center; padding: 20px; background-color: #f0f0f0; }
+        body { font-family: sans-serif; display: flex; flex-direction: column;
+                align-items: center; justify-content: center; padding: 20px; background-color: #f0f0f0; }
         #game-container { display: flex; gap: 20px; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
         canvas { border: 2px solid #333; background: #fff; cursor: crosshair; }
         #sidebar { width: 200px; }
@@ -12,6 +13,33 @@
             cursor: pointer; background: #eee; border: 1px solid #ccc; border-radius: 4px;
         }
         .spawn-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        body { 
+        background-color: #f4f1ea; /* Soft parchment beige */
+        color: #4a4a4a;
+        }
+        #game-container { 
+            background: #ffffff; 
+            border-radius: 12px; 
+            box-shadow: 0 10px 30px rgba(0,0,0,0.05); /* Softer shadow */
+        }
+        canvas { 
+            border: 1px solid #d1ccc0; 
+            border-radius: 4px;
+            background: #faf9f6; 
+        }
+        .spawn-btn {
+            background: #e0e0e0;
+            border: none;
+            border-radius: 6px;
+            color: #555;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+        .spawn-btn:hover:not(:disabled) {
+            background: #d4d4d4;
+            transform: translateY(-1px);
+        }
     </style>
 </head>
 <body>
@@ -26,6 +54,13 @@
         </div>
     </div>
 
+    <div style="text-align: center; margin-bottom: 30px; margin-top: 20px;">
+        <h1 style="font-weight: 300; letter-spacing: 4px; color: #5d5d5d; margin-bottom: 10px; text-transform: uppercase;">
+            Partridge Tiling
+        </h1>
+        <div style="width: 60px; height: 1px; background: #d1ccc0; margin: 0 auto;"></div>
+    </div>
+
     <div id="game-container">
         <canvas id="gameCanvas"></canvas>
         <div id="sidebar">
@@ -35,7 +70,7 @@
             <button id="resetBtn" style="width: 100%; padding: 10px; margin-top: 10px; background-color: #ff4444; color: white; border: none; border-radius: 4px; cursor: pointer;">Reset Board</button>
         </div>
     </div>
-    
+
     <script src="/socket.io/socket.io.js"></script>
     <script>
         const socket = io({ transports: ['websocket'] });
@@ -125,6 +160,21 @@
             socket.emit('movePiece', { id: activePieceId, x: snapX, y: snapY });
         });
 
+        function drawRoundedRect(ctx, x, y, width, height, radius) {
+            ctx.beginPath();
+            ctx.moveTo(x + radius, y);
+            ctx.lineTo(x + width - radius, y);
+            ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+            ctx.lineTo(x + width, y + height - radius);
+            ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+            ctx.lineTo(x + radius, y + height);
+            ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+            ctx.lineTo(x, y + radius);
+            ctx.quadraticCurveTo(x, y, x + radius, y);
+            ctx.closePath();
+            ctx.fill();
+        }
+
         function draw() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             ctx.fillStyle = "#fff";
@@ -138,13 +188,37 @@
             ctx.strokeRect(0, 0, BOARD_LIMIT, BOARD_LIMIT);
 
             pieces.forEach(p => {
-                ctx.fillStyle = p.color;
                 const px = p.size * GRID_SIZE;
-                ctx.fillRect(p.x, p.y, px, px);
-                if (p.heldBy) {
-                    ctx.strokeStyle = p.heldBy === myId ? "#00FF00" : "#FF0000";
-                    ctx.lineWidth = 3; ctx.strokeRect(p.x, p.y, px, px);
+                
+                ctx.save(); // Save current state
+                
+                if (p.heldBy === myId) {
+                    // Add shadow only to the piece you are holding
+                    ctx.shadowColor = "rgba(0, 0, 0, 0.2)";
+                    ctx.shadowBlur = 15;
+                    ctx.shadowOffsetX = 5;
+                    ctx.shadowOffsetY = 5;
+                    
+                    // Slightly scale it up to look "lifted"
+                    ctx.fillStyle = p.color;
+                    drawRoundedRect(ctx, p.x - 1, p.y - 1, px + 2, px + 2, 6);
+                } else {
+                    ctx.fillStyle = p.color;
+                    drawRoundedRect(ctx, p.x + 1, p.y + 1, px - 2, px - 2, 4);
                 }
+
+                // Apply the Muted Sage/Terracotta borders
+                if (p.heldBy) {
+                    ctx.strokeStyle = p.heldBy === myId ? "#81b29a" : "#e07a5f";
+                    ctx.lineWidth = 2;
+                    ctx.stroke(); 
+                } else {
+                    ctx.strokeStyle = "rgba(0,0,0,0.05)";
+                    ctx.lineWidth = 1;
+                    ctx.stroke();
+                }
+                
+                ctx.restore(); // Restore state to remove shadow for next pieces
             });
         }
 

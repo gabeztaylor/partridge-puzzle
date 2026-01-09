@@ -18,6 +18,17 @@ const BOARD_LIMIT = BOARD_PIXEL_SIZE;
 let pieces = [];
 let inventory = { 1: 1, 2: 2, 3: 3, 4: 4, 5: 5, 6: 6, 7: 7, 8: 8 };
 
+const CALM_COLORS = {
+    1: "#b8c1ec", // Soft Blue
+    2: "#a2d2ff", // Sky
+    3: "#ccd5ae", // Sage
+    4: "#e9edc9", // Creamy Green
+    5: "#fae1dd", // Pale Pink
+    6: "#fec89a", // Peach
+    7: "#dec0f1", // Lavender
+    8: "#957fef"  // Muted Purple
+};
+
 app.get('/', (req, res) => {
     res.sendFile(__dirname + '/index.html');
 });
@@ -51,7 +62,8 @@ io.on('connection', (socket) => {
                 y: 20,
                 heldBy: socket.id, 
                 isLocked: false,
-                color: `hsl(${(size * 45) % 360}, 65%, 50%)`
+                // color: `hsl(${(size * 45) % 360}, 65%, 50%)`
+                color: CALM_COLORS[size]
             };
             inventory[size]--;
             pieces.push(newPiece);
@@ -140,7 +152,8 @@ function extractPiecesFromTemplate(template, fillProbability) {
                         y: r * GRID_SIZE,
                         heldBy: null,
                         isLocked: true,
-                        color: `hsl(${(size * 45) % 360}, 65%, 50%)`
+                        // color: `hsl(${(size * 45) % 360}, 65%, 50%)`
+                        color: CALM_COLORS[size]
                     });
                 }
             }
