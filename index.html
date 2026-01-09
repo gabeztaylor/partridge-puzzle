@@ -13,11 +13,99 @@
             background: rgba(0,0,0,0.9); display: flex; flex-direction: column; 
             justify-content: center; align-items: center; z-index: 1000; color: white; 
         }
+        .home-card {
+            width: min(560px, calc(100vw - 48px));
+            background: rgba(255,255,255,0.06);
+            border: 1px solid rgba(255,255,255,0.12);
+            border-radius: 14px;
+            padding: 22px 22px 18px;
+            box-shadow: 0 16px 50px rgba(0,0,0,0.35);
+            backdrop-filter: blur(10px);
+        }
+        .home-label {
+            display: block;
+            font-size: 0.85rem;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            opacity: 0.85;
+            margin: 0 0 10px;
+        }
+        .home-row {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+        .text-input {
+            appearance: none;
+            width: min(360px, 100%);
+            padding: 12px 14px;
+            border-radius: 10px;
+            border: 1px solid rgba(255,255,255,0.18);
+            background: rgba(255,255,255,0.10);
+            color: #fff;
+            outline: none;
+        }
+        .text-input::placeholder { color: rgba(255,255,255,0.55); }
+        .text-input:focus {
+            border-color: rgba(129,178,154,0.9);
+            box-shadow: 0 0 0 4px rgba(129,178,154,0.25);
+        }
+        .btn {
+            appearance: none;
+            border: 0;
+            border-radius: 10px;
+            padding: 12px 14px;
+            cursor: pointer;
+            font-weight: 600;
+            letter-spacing: 0.02em;
+            transition: transform 0.12s ease, filter 0.12s ease, box-shadow 0.12s ease;
+            user-select: none;
+        }
+        .btn:active { transform: translateY(1px); }
+        .btn:focus-visible {
+            outline: none;
+            box-shadow: 0 0 0 4px rgba(255,255,255,0.16);
+        }
+        .btn-primary {
+            background: linear-gradient(180deg, #81b29a 0%, #6ea88f 100%);
+            color: white;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.28);
+        }
+        .btn-primary:hover { filter: brightness(1.06); }
+
+        .difficulty-wrap { margin-top: 18px; }
+        .difficulty-row { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; margin-top: 12px; }
+        .difficulty-btn {
+            min-width: 130px;
+            padding: 12px 16px;
+            color: #1e1e1e;
+            background: rgba(255,255,255,0.90);
+            border: 1px solid rgba(255,255,255,0.22);
+            box-shadow: 0 10px 22px rgba(0,0,0,0.22);
+        }
+        .difficulty-btn:hover { filter: brightness(1.03); transform: translateY(-1px); }
+        .difficulty-btn:active { transform: translateY(0px); }
+        .difficulty-btn.easy { border-color: rgba(129,178,154,0.55); }
+        .difficulty-btn.medium { border-color: rgba(244,162,97,0.55); }
+        .difficulty-btn.hard { border-color: rgba(224,122,95,0.55); }
+        .difficulty-subtext { opacity: 0.8; font-size: 0.9rem; margin: 0; }
+        .divider { width: 100%; height: 1px; background: rgba(255,255,255,0.14); margin: 18px 0; }
+
         #game-container { 
             display: flex; gap: 30px; background: white; padding: 30px; 
             border-radius: 12px; box-shadow: 0 10px 40px rgba(0,0,0,0.04); 
+            align-items: flex-start;
         }
-        canvas { border: 1px solid #d1ccc0; border-radius: 4px; background: #faf9f6; cursor: crosshair; }
+        canvas {
+            border: 1px solid #d1ccc0;
+            border-radius: 4px;
+            background: #faf9f6;
+            cursor: crosshair;
+            flex: 0 0 auto;
+            display: block;
+        }
         #sidebar { width: 220px; }
         .spawn-btn {
             display: block; width: 100%; padding: 12px; margin-bottom: 8px;
@@ -35,29 +123,29 @@
     <div id="homeScreen">
         <h1 style="letter-spacing: 4px; text-transform: uppercase;">Partridge Tiling</h1>
         
-        <div id="roomControls" style="margin-bottom: 30px; text-align: center;">
-            <input type="text" id="roomInput" placeholder="Room Name (e.g. 'Lab')" 
-                   style="padding: 10px; border-radius: 4px; border: none; width: 200px;">
+        <div class="home-card">
+        <div id="roomControls" style="text-align: center;">
+            <label class="home-label" for="roomInput">Room</label>
+            <input type="text" id="roomInput" class="text-input" placeholder="Room Name (e.g. 'Lab')">
             
-            <div style="margin-top: 15px; display: flex; gap: 10px; justify-content: center;">
-                <button onclick="joinSpecificRoom()" style="padding: 10px 20px; cursor: pointer; background: #81b29a; color: white; border: none; border-radius: 4px;">
-                    Enter Room
-                </button>
+            <div class="home-row" style="margin-top: 12px;">
+                <button class="btn btn-primary" onclick="joinSpecificRoom()">Enter Room</button>
             </div>
             <p style="font-size: 0.8em; color: #ccc; margin-top: 10px;">
                 If the room is empty, you'll be asked to set the difficulty.
             </p>
         </div>
     
-        <hr style="width: 50%; opacity: 0.2; margin: 20px 0;">
+        <div class="divider"></div>
     
-        <div id="difficultySection">
-            <p>This room is empty. Select a difficulty to seed the board:</p>
-            <div style="display: flex; gap: 20px;">
-                <button onclick="selectDifficulty('easy')" ...>Easy</button>
-                <button onclick="selectDifficulty('medium')" ...>Medium</button>
-                <button onclick="selectDifficulty('hard')" ...>Hard</button>
+        <div id="difficultySection" class="difficulty-wrap" style="text-align: center;">
+            <p class="difficulty-subtext">This room is empty. Select a difficulty to seed the board:</p>
+            <div class="difficulty-row">
+                <button class="btn difficulty-btn easy" onclick="selectDifficulty('easy')">Easy</button>
+                <button class="btn difficulty-btn medium" onclick="selectDifficulty('medium')">Medium</button>
+                <button class="btn difficulty-btn hard" onclick="selectDifficulty('hard')">Hard</button>
             </div>
+        </div>
         </div>
     </div>
 
@@ -82,11 +170,23 @@
         const socket = io({ transports: ['websocket'] });
         const GRID_SIZE = 12;
         const BOARD_LIMIT = 36 * GRID_SIZE;
+        const TRAY_WIDTH = 150; // space to the right of the board for newly spawned pieces
+        const CANVAS_WIDTH = BOARD_LIMIT + TRAY_WIDTH;
+        const CANVAS_HEIGHT = BOARD_LIMIT;
 
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
-        canvas.width = BOARD_LIMIT + 150; 
-        canvas.height = BOARD_LIMIT;
+        // Keep canvas sizing consistent (prevents non-uniform stretching that makes squares look like rectangles)
+        function resizeCanvas() {
+            const dpr = Math.max(1, window.devicePixelRatio || 1);
+            canvas.style.width = `${CANVAS_WIDTH}px`;
+            canvas.style.height = `${CANVAS_HEIGHT}px`;
+            canvas.width = Math.round(CANVAS_WIDTH * dpr);
+            canvas.height = Math.round(CANVAS_HEIGHT * dpr);
+            // Draw in "CSS pixel" coordinates so GRID_SIZE math stays correct.
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        }
+        resizeCanvas();
 
         let pieces = [], myId = null, activePieceId = null;
 
@@ -214,7 +314,7 @@
         }
 
         function draw() {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
             ctx.fillStyle = "#fff";
             ctx.fillRect(0, 0, BOARD_LIMIT, BOARD_LIMIT);
             ctx.strokeStyle = "#f0f0f0"; 
@@ -225,9 +325,11 @@
             ctx.strokeStyle = "#d1ccc0"; ctx.lineWidth = 1;
             ctx.strokeRect(0, 0, BOARD_LIMIT, BOARD_LIMIT);
 
-            pieces.forEach(p => {
+            pieces.forEach(p => {   
                 const px = p.size * GRID_SIZE;
                 ctx.save();
+
+                // 1. Draw the Square Body
                 if (p.heldBy === myId) {
                     ctx.shadowColor = "rgba(0, 0, 0, 0.1)";
                     ctx.shadowBlur = 10;
@@ -240,13 +342,33 @@
                     drawRoundedRect(ctx, p.x + 1, p.y + 1, px - 2, px - 2, 4);
                 }
 
+                // 2. Draw the "Fixed" Center Pin
+                if (p.isLocked) {
+                    // Calculate the center point
+                    const centerX = p.x + px / 2;
+                    const centerY = p.y + px / 2;
+                    
+                    // Scale the radius: proportional to size, but with a minimum
+                    const dotRadius = Math.max(2, px / 10);
+
+                    ctx.fillStyle = "rgba(0, 0, 0, 0.25)"; // Muted dark dot
+                    ctx.beginPath();
+                    ctx.arc(centerX, centerY, dotRadius, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+
+                // 3. Draw standard borders for movable/held pieces
                 if (p.heldBy) {
                     ctx.strokeStyle = p.heldBy === myId ? "#81b29a" : "#e07a5f";
-                    ctx.lineWidth = 2; ctx.stroke(); 
+                    ctx.lineWidth = 2;
+                    ctx.stroke(); 
                 } else {
+                    // Very subtle edge for unheld, placed pieces
                     ctx.strokeStyle = "rgba(0,0,0,0.05)";
-                    ctx.lineWidth = 1; ctx.stroke();
+                    ctx.lineWidth = 1;
+                    ctx.stroke();
                 }
+                
                 ctx.restore();
             });
         }
