@@ -30,7 +30,9 @@
     <script src="/socket.io/socket.io.js"></script>
 
     <script>
-        const socket = io();
+        const socket = io({
+            transports: ['websocket']
+        });
         const GRID_SIZE = 12; // Scaled down for 36x36
         const BOARD_UNITS = 36;
         const BOARD_LIMIT = BOARD_UNITS * GRID_SIZE; // 432px
