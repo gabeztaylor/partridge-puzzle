@@ -2,6 +2,7 @@
 <html>
 <head>
     <title>Partridge Tiling Puzzle</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <style>
         body { 
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -110,6 +111,8 @@
             cursor: crosshair;
             flex: 0 0 auto;
             display: block;
+            /* Mobile: ensure dragging doesn't scroll/zoom the page */
+            touch-action: none;
         }
         #sidebar { width: 220px; }
         #roomInfo {
@@ -287,6 +290,13 @@
         }
         
         .action-btn { width: 100%; padding: 10px; border: none; border-radius: 8px; cursor: pointer; color: white; }
+
+        /* Mobile-friendly layout: stack palette under the board */
+        @media (max-width: 900px) {
+            body { padding: 16px; }
+            #game-container { flex-direction: column; gap: 16px; padding: 16px; width: min(100%, 720px); }
+            #sidebar { width: 100%; max-width: 520px; }
+        }
     </style>
 </head>
 <body>
@@ -379,16 +389,28 @@
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
         // Keep canvas sizing consistent (prevents non-uniform stretching that makes squares look like rectangles)
+        let viewScale = 1;
         function resizeCanvas() {
             const dpr = Math.max(1, window.devicePixelRatio || 1);
-            canvas.style.width = `${CANVAS_WIDTH}px`;
-            canvas.style.height = `${CANVAS_HEIGHT}px`;
-            canvas.width = Math.round(CANVAS_WIDTH * dpr);
-            canvas.height = Math.round(CANVAS_HEIGHT * dpr);
-            // Draw in "CSS pixel" coordinates so GRID_SIZE math stays correct.
-            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+            // Scale down on narrow screens so the full board+tray fits horizontally.
+            const padding = 32; // matches "body padding" roughly on mobile
+            const availableW = Math.max(240, window.innerWidth - padding);
+            viewScale = Math.min(1, availableW / CANVAS_WIDTH);
+
+            const cssW = Math.round(CANVAS_WIDTH * viewScale);
+            const cssH = Math.round(CANVAS_HEIGHT * viewScale);
+            canvas.style.width = `${cssW}px`;
+            canvas.style.height = `${cssH}px`;
+            canvas.width = Math.round(cssW * dpr);
+            canvas.height = Math.round(cssH * dpr);
+
+            // Draw in logical "game" coordinates; scale transform maps logical->device pixels.
+            ctx.setTransform(dpr * viewScale, 0, 0, dpr * viewScale, 0, 0);
         }
         resizeCanvas();
+        window.addEventListener('resize', () => { resizeCanvas(); draw(); }, { passive: true });
+        window.addEventListener('orientationchange', () => { resizeCanvas(); draw(); }, { passive: true });
 
         let pieces = [], myId = null, activePieceId = null;
         let forceHomeScreen = false;
@@ -589,9 +611,12 @@
 
         function getMousePos(evt) {
             const rect = canvas.getBoundingClientRect();
+            // rect is in CSS pixels (scaled); convert to logical coordinates.
+            const clientX = evt.clientX;
+            const clientY = evt.clientY;
             return {
-                x: Math.round((evt.clientX - rect.left) / GRID_SIZE) * GRID_SIZE,
-                y: Math.round((evt.clientY - rect.top) / GRID_SIZE) * GRID_SIZE
+                x: Math.round(((clientX - rect.left) / viewScale) / GRID_SIZE) * GRID_SIZE,
+                y: Math.round(((clientY - rect.top) / viewScale) / GRID_SIZE) * GRID_SIZE
             };
         }
 
@@ -618,14 +643,155 @@
             if (!piece) return;
 
             const pixelSize = piece.size * GRID_SIZE;
-            const rawX = e.clientX - rect.left - (pixelSize / 2);
-            const rawY = e.clientY - rect.top - (pixelSize / 2);
+            const rawX = ((e.clientX - rect.left) / viewScale) - (pixelSize / 2);
+            const rawY = ((e.clientY - rect.top) / viewScale) - (pixelSize / 2);
 
             const snapX = Math.round(rawX / GRID_SIZE) * GRID_SIZE;
             const snapY = Math.round(rawY / GRID_SIZE) * GRID_SIZE;
 
             socket.emit('movePiece', { id: activePieceId, x: snapX, y: snapY, roomId: roomID });
         });
+
+        // Touch/pen support: Pointer Events (mobile-friendly dragging).
+        // We intentionally ignore mouse PointerEvents so the existing desktop "click to pick/drop" behavior stays unchanged.
+        const supportsPointer = 'PointerEvent' in window;
+        const touchDrag = {
+            pointerId: null,
+            rafPending: false,
+            lastClientX: 0,
+            lastClientY: 0
+        };
+
+        function touchLogicalFromClient(clientX, clientY) {
+            const rect = canvas.getBoundingClientRect();
+            return {
+                x: (clientX - rect.left) / viewScale,
+                y: (clientY - rect.top) / viewScale
+            };
+        }
+
+        function touchPickAt(clientX, clientY) {
+            const pos = touchLogicalFromClient(clientX, clientY);
+            const snapX = Math.round(pos.x / GRID_SIZE) * GRID_SIZE;
+            const snapY = Math.round(pos.y / GRID_SIZE) * GRID_SIZE;
+
+            const clicked = pieces.find(p =>
+                snapX >= p.x && snapX < p.x + (p.size * GRID_SIZE) &&
+                snapY >= p.y && snapY < p.y + (p.size * GRID_SIZE)
+            );
+            if (clicked && !clicked.heldBy && !clicked.isLocked) {
+                // Optimistic: set active locally so the piece follows immediately; server will validate.
+                activePieceId = clicked.id;
+                socket.emit('pickUp', { pieceId: clicked.id, roomId: roomID });
+            }
+        }
+
+        function scheduleTouchMoveEmit() {
+            if (touchDrag.rafPending) return;
+            touchDrag.rafPending = true;
+            requestAnimationFrame(() => {
+                touchDrag.rafPending = false;
+                if (!activePieceId) return;
+                const piece = pieces.find(p => p.id === activePieceId);
+                if (!piece) return;
+                // Don't locally "drag" until the server has confirmed we actually hold the piece.
+                // (Prevents the piece from jumping around briefly and snapping back.)
+                if (piece.heldBy !== myId) return;
+
+                const pos = touchLogicalFromClient(touchDrag.lastClientX, touchDrag.lastClientY);
+                const pixelSize = piece.size * GRID_SIZE;
+                const rawX = pos.x - (pixelSize / 2);
+                const rawY = pos.y - (pixelSize / 2);
+                const snapX = Math.round(rawX / GRID_SIZE) * GRID_SIZE;
+                const snapY = Math.round(rawY / GRID_SIZE) * GRID_SIZE;
+
+                // Optimistically move locally for smoother touch feedback.
+                piece.x = snapX;
+                piece.y = snapY;
+                draw();
+
+                socket.emit('movePiece', { id: activePieceId, x: snapX, y: snapY, roomId: roomID });
+            });
+        }
+
+        function dropTouchPiece() {
+            if (!activePieceId) return;
+            activePieceId = null;
+            socket.emit('dropPiece', { roomId: roomID });
+        }
+
+        if (supportsPointer) {
+            canvas.addEventListener('pointerdown', (e) => {
+                if (e.pointerType === 'mouse') return;
+                if (menuIsOpen) return;
+                e.preventDefault();
+
+                touchDrag.pointerId = e.pointerId;
+                touchDrag.lastClientX = e.clientX;
+                touchDrag.lastClientY = e.clientY;
+                try { canvas.setPointerCapture(e.pointerId); } catch (_) {}
+
+                if (!activePieceId) {
+                    touchPickAt(e.clientX, e.clientY);
+                }
+            }, { passive: false });
+
+            window.addEventListener('pointermove', (e) => {
+                if (e.pointerType === 'mouse') return;
+                if (touchDrag.pointerId == null || e.pointerId !== touchDrag.pointerId) return;
+                e.preventDefault();
+                touchDrag.lastClientX = e.clientX;
+                touchDrag.lastClientY = e.clientY;
+                if (activePieceId) scheduleTouchMoveEmit();
+            }, { passive: false });
+
+            window.addEventListener('pointerup', (e) => {
+                if (e.pointerType === 'mouse') return;
+                if (touchDrag.pointerId == null || e.pointerId !== touchDrag.pointerId) return;
+                e.preventDefault();
+                touchDrag.pointerId = null;
+                try { canvas.releasePointerCapture(e.pointerId); } catch (_) {}
+                dropTouchPiece();
+            }, { passive: false });
+
+            window.addEventListener('pointercancel', (e) => {
+                if (e.pointerType === 'mouse') return;
+                if (touchDrag.pointerId == null || e.pointerId !== touchDrag.pointerId) return;
+                touchDrag.pointerId = null;
+                try { canvas.releasePointerCapture(e.pointerId); } catch (_) {}
+                dropTouchPiece();
+            }, { passive: false });
+        } else {
+            // Older iOS fallback (no PointerEvent): touch events.
+            canvas.addEventListener('touchstart', (e) => {
+                if (menuIsOpen) return;
+                if (!e.touches || e.touches.length === 0) return;
+                e.preventDefault();
+                const t = e.touches[0];
+                touchDrag.lastClientX = t.clientX;
+                touchDrag.lastClientY = t.clientY;
+                if (!activePieceId) touchPickAt(t.clientX, t.clientY);
+            }, { passive: false });
+
+            canvas.addEventListener('touchmove', (e) => {
+                if (!e.touches || e.touches.length === 0) return;
+                e.preventDefault();
+                const t = e.touches[0];
+                touchDrag.lastClientX = t.clientX;
+                touchDrag.lastClientY = t.clientY;
+                if (activePieceId) scheduleTouchMoveEmit();
+            }, { passive: false });
+
+            canvas.addEventListener('touchend', (e) => {
+                e.preventDefault();
+                dropTouchPiece();
+            }, { passive: false });
+
+            canvas.addEventListener('touchcancel', (e) => {
+                e.preventDefault();
+                dropTouchPiece();
+            }, { passive: false });
+        }
 
         // 4. RENDERING (Zen/Calm Aesthetic)
         function drawRoundedRect(ctx, x, y, width, height, radius) {
